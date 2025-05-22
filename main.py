@@ -66,7 +66,7 @@ if __name__ == "__main__":
             #     print(f"      Processing time: {machine['processing_time']}")
             #     print(f"      Load/unload time: {machine['load_unload_time']}")   
 
-            print(f"  Total waiting time: {result}")
+            print(f"Total waiting time: {result}")
 
 
 
