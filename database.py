@@ -2,7 +2,6 @@
 
 import cx_Oracle
 
-
 class Database:
     def __init__(self, user, password, hostname):
         self.user = user

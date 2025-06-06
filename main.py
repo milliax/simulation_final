@@ -1,10 +1,10 @@
 
 from database import Database
 from area import AreaDispatcher
-from typing import List, Tuple
 import pandas as pd
 
 import os
+from typing import Any
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -95,55 +95,62 @@ if __name__ == "__main__":
 
         better_solution_found = True
         minimum_waiting_time = 1e10
-        best_permutation = []
 
         # distribut e['workers'] workers to areas
 
         # using instance 1 for all tasks
         number_of_areas = len(layout['1'].keys())
-        permutations = []
+
+        # 0606: update permutations typo into permutation
+        permutation: list[int] = []
+
+        # getting started with the minimum number of workers as each area for one
+
+        worker_available = e["workers"]
 
         for i in range(number_of_areas):
-            # distribute workers evenly
-            if i == number_of_areas - 1:
-                # last area gets all remaining workers
-                workers = e["workers"] - \
-                    (e["workers"] // number_of_areas) * (number_of_areas - 1)
+            if e["workers"] > 0:
+                permutation.append(1)
+                worker_available -= 1
             else:
-                workers = e["workers"] // number_of_areas
+                permutation.append(0)
+                print("  Error: No more workers available, setting to 0")
 
-            permutations.append(workers)
+        areas = len(layout['1'].keys())
+        machines_in_each_area: dict[str, list[dict[str, str | int]]] = {
+            area: layout['1'][area] for area in layout['1'].keys()}
 
-        print(f"  Workers distribution: {permutations}")
+        total_machine_number = 0
 
-        # for area in layout[1]:
+        for area in machines_in_each_area:
+            total_machine_number += len(machines_in_each_area[area])
 
-        while better_solution_found:
-            # continue until no better solution is found
+        print(f"  Worker_available: {worker_available}")
+        print(f"  Total machines in all areas: {total_machine_number}")
+        print(f"  Initial permutation: {permutation}")
 
-            all_permutations = []
-            better_solution_found = False
+        while worker_available > 0 and sum(permutation) <= total_machine_number:
+            # as long as there are workers available, distribute them evenly
+            # get the total number of machines in all areas
 
-            for i in range(len(permutations)):
-                for j in range(len(permutations)):
-                    if i != j:
-                        new_permutation = permutations.copy()
-                        new_permutation[i] += 1
-                        new_permutation[j] -= 1
-                        all_permutations.append(new_permutation)
+            # i could still add more workers to the areas
 
-            if isDev:
-                print(f"  All permutations: {all_permutations}")
+            print("trying to find a better solution...")
 
-            for p in all_permutations:
+            area_to_add = None
+            lowest_waiting_time = 1e10
 
-                sum = 0
+            for area_idx in range(len(permutation)): # finding the next area to add a worker to
+                new_permutation = permutation.copy()
+                new_permutation[area_idx] += 1
 
-                for tied in zip(p, layout['1'].keys()):
+                new_waiting_time = 0
+
+                for tied in zip(new_permutation, layout['1'].keys()): # calculate the waiting time for each area
                     # print(f"tied: {tied}")
 
                     if caching.get(tied[1]) is not None and caching[tied[1]].get(tied[0]) is not None:
-                        sum += caching[tied[1]][tied[0]]
+                        new_waiting_time += caching[tied[1]][tied[0]]
                         if isDev:
                             print(
                                 f"  HIT cache for area {tied[1]} with {tied[0]} workers")
@@ -166,23 +173,24 @@ if __name__ == "__main__":
                         print(
                             f"  Processing time for area {tied[1]} with {tied[0]} time: {result}")
 
-                    sum += result
-
+                    new_waiting_time += result
                     caching.setdefault(tied[1], {})[tied[0]] = result
 
-                if sum < minimum_waiting_time:
-                    minimum_waiting_time = sum
-                    best_permutation = p
-                    better_solution_found = True
-                    permutations = p
-                    if isDev:
-                        print(f"  Found better solution: {p} with time {sum}")
+                if(new_waiting_time < lowest_waiting_time):
+                    lowest_waiting_time = new_waiting_time
+                    area_to_add = area_idx
 
-                    p = permutations
+            if area_to_add is not None:
+                permutation[area_to_add] += 1
+                worker_available -= 1
+                minimum_waiting_time = lowest_waiting_time
+
+                print(f"     updated permutation: {permutation}")
+                print(f"     woker available: {worker_available}")
 
                 if isDev:
                     print(
-                        f"Total processing time: {sum}, with permutation: {p}")
+                        f"  Adding worker to area {layout['1'].keys()[area_to_add]}: {permutation}")
 
             # for machine in dictionary[key][area]:
             #     print(f"    Machine: {machine['machine']}")
@@ -191,10 +199,11 @@ if __name__ == "__main__":
 
         result_to_write.append({
             "INSTANCE": e["id"],
-            "AVERAGE_IDLE_TIME": int(minimum_waiting_time/60) / (len(layout["1"]["ETCH"]) + len(layout["1"]["PHOTO"]) + len(layout["1"]["TF"])),  # average idle time in minutes
-            "STAFF_IN_AREA1": best_permutation[0],
-            "STAFF_IN_AREA2": best_permutation[1],
-            "STAFF_IN_AREA3": best_permutation[2],
+            # average idle time in minutes
+            "AVERAGE_IDLE_TIME": int(minimum_waiting_time/60) / (len(layout["1"]["ETCH"]) + len(layout["1"]["PHOTO"]) + len(layout["1"]["TF"])),
+            "STAFF_IN_AREA1": permutation[0],
+            "STAFF_IN_AREA2": permutation[1],
+            "STAFF_IN_AREA3": permutation[2],
 
             "DISPATCH_IN_AREA1": "FIFO",
             "DISPATCH_IN_AREA2": "FIFO",
@@ -202,9 +211,12 @@ if __name__ == "__main__":
         })
 
         print(
-            f"Best permutation: {best_permutation} with time {minimum_waiting_time/60} minutes")
+            f"Best permutation: {permutation} with time {minimum_waiting_time/60} minutes")
 
     # print(f"caching: {caching}")
+
+    # skip to write to database
+    exit(0)
 
     """ write result back to database """
     db = Database(user="TEAM_11",
@@ -269,7 +281,7 @@ WHEN NOT MATCHED THEN
             "dispatch_area2": result["DISPATCH_IN_AREA2"],
             "dispatch_area3": result['DISPATCH_IN_AREA3']})
 
-    # plot the best permutation with gannt chart         
+    # plot the best permutation with gannt chart
 
     db.close()
     print("Results written to database successfully.")
