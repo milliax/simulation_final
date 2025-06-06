@@ -1,7 +1,7 @@
 import os
 import heapq
 
-from type import Event, Job, EventStatus
+from type import Event, Job, EventStatus, DispatchingRule
 from worker import Worker
 
 from dotenv import load_dotenv
@@ -15,7 +15,7 @@ class AreaDispatcher:
 
     job_queue: list[Job] = []
 
-    def __init__(self, number_of_workers, machines, total_processing_time, area_name, dispatching_rule="FIFO"):
+    def __init__(self, number_of_workers, machines, total_processing_time, area_name, dispatching_rule: DispatchingRule = DispatchingRule.FIFO):
         self.number_of_workers = number_of_workers
         self.machines = machines
         self.total_processing_time = total_processing_time
@@ -23,10 +23,11 @@ class AreaDispatcher:
 
         self.events: list[Event] = []
         self.job_queue: list[Job] = []
+        self.dispatching_rule: DispatchingRule = dispatching_rule
 
         # write data with filename {area_name}-{number_of_workers}-{total_processing_time}.csv
         self.foldername = "results"
-        self.filename = f"{area_name}-{number_of_workers}-{total_processing_time}.csv"
+        self.filename = f"{area_name}-{number_of_workers}-{total_processing_time}-{dispatching_rule}.csv"
 
         self.file = open(f"results/{self.filename}", "w")
         # clear the data
@@ -112,6 +113,9 @@ class AreaDispatcher:
                             f"Machine {current_event.machine_name} not found in area {self.area_name}")
                     continue
 
+                if(process_end[current_event.machine_name] != current_event.processing_end):
+                    print("two different processing end times for the same machine")
+
                 total_waiting_time += current_event.time - \
                     process_end[current_event.machine_name] - \
                     machine_property["load_unload_time"]
@@ -162,7 +166,27 @@ class AreaDispatcher:
                         # this worker is available
 
                         # FIFO here
-                        job = self.job_queue.pop(0)
+                        if (self.dispatching_rule == DispatchingRule.FIFO):
+                            job = self.job_queue[0]
+                            # remove the job from the queue
+                            self.job_queue.pop(0)
+                        elif (self.dispatching_rule == DispatchingRule.LIFO):
+                            job = self.job_queue[-1]
+                            # remove the job from the queue
+                            self.job_queue.pop(-1)
+                        elif (self.dispatching_rule == DispatchingRule.SPTF):
+                            # Shortest Processing Time First
+                            job = min(self.job_queue, key=lambda j: j.duration)
+                            # remove the job from the queue
+                            self.job_queue.remove(job)
+                        elif (self.dispatching_rule == DispatchingRule.LPTF):
+                            # Highest Processing Time First
+                            job = max(self.job_queue, key=lambda j: j.duration)
+                            # remove the job from the queue
+                            self.job_queue.remove(job)
+                        else:
+                            raise ValueError(
+                                f"Unknown dispatching rule: {self.dispatching_rule}")
 
                         machine_property = next(
                             (m for m in self.machines if m['machine'] == job.machine_name), None)
@@ -194,6 +218,6 @@ class AreaDispatcher:
 
         if (isDebug):
             print(
-                f"Total waiting time for area {self.area_name}: {total_waiting_time}")
+            f"Total waiting time for area {self.area_name}: {total_waiting_time}")
 
         return total_waiting_time

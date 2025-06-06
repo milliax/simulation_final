@@ -37,3 +37,12 @@ class Job:
 
     def __repr__(self):
         return f"Job(produced_time={self.produced_time}, duration={self.duration}, machine_name={self.machine_name})"
+
+class DispatchingRule(Enum):
+    FIFO = "fifo"
+    LIFO = "lifo"
+    SPTF = "sptf"
+    LPTF = "lptf"
+
+    def __str__(self):
+        return self.value

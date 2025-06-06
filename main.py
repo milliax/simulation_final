@@ -5,9 +5,11 @@ import pandas as pd
 
 import os
 from typing import Any
+from type import DispatchingRule
 
 from dotenv import load_dotenv
 load_dotenv()
+
 
 isDev = os.getenv("DEBUG") == "true"
 
@@ -75,12 +77,14 @@ if __name__ == "__main__":
 
     # print(dictionary)
 
-    caching: dict[str, dict[int, int]] = {}
+    caching: dict[str, dict[DispatchingRule, dict[int, int]]] = {}
 
     """
     caching: {
         "area_name": {
-            "worker_cnt": processing_time
+            "dispatching_method":{
+                "worker_cnt": processing_time
+            }
         }
     }
     
@@ -103,6 +107,7 @@ if __name__ == "__main__":
 
         # 0606: update permutations typo into permutation
         permutation: list[int] = []
+        method: list[DispatchingRule] = []
 
         # getting started with the minimum number of workers as each area for one
 
@@ -115,6 +120,8 @@ if __name__ == "__main__":
             else:
                 permutation.append(0)
                 print("  Error: No more workers available, setting to 0")
+
+            method.append(DispatchingRule.FIFO)
 
         areas = len(layout['1'].keys())
         machines_in_each_area: dict[str, list[dict[str, str | int]]] = {
@@ -135,48 +142,81 @@ if __name__ == "__main__":
 
             # i could still add more workers to the areas
 
-            print("trying to find a better solution...")
-
             area_to_add = None
             lowest_waiting_time = 1e10
 
-            for area_idx in range(len(permutation)): # finding the next area to add a worker to
+            # finding the next area to add a worker to
+            for area_idx in range(len(permutation)):
                 new_permutation = permutation.copy()
                 new_permutation[area_idx] += 1
 
                 new_waiting_time = 0
+                results = []
 
-                for tied in zip(new_permutation, layout['1'].keys()): # calculate the waiting time for each area
+                # calculate the waiting time for each area
+                for tied in zip(new_permutation, layout['1'].keys()):
                     # print(f"tied: {tied}")
-
-                    if caching.get(tied[1]) is not None and caching[tied[1]].get(tied[0]) is not None:
-                        new_waiting_time += caching[tied[1]][tied[0]]
-                        if isDev:
-                            print(
-                                f"  HIT cache for area {tied[1]} with {tied[0]} workers")
-                        continue
 
                     if isDev:
                         print(f"  Area: {tied[1]}, Workers: {tied[0]}")
 
-                    a = AreaDispatcher(
-                        number_of_workers=tied[0],
-                        # using instance 1 for all tasks
-                        machines=layout['1'][tied[1]],
-                        total_processing_time=e["limitation"],
-                        area_name=tied[1],
-                    )
+                    # run for each dispatching method FIFO, LIFO, SPTF, LPTF
 
-                    result = a.dispatch()
+                    best_result = int(1e10)
+                    # should be None, but we need to set it to something
+                    best_method = DispatchingRule.FIFO
+
+                    for dispatching_method in [DispatchingRule.FIFO, DispatchingRule.LIFO, DispatchingRule.SPTF, DispatchingRule.LPTF]:
+                        if caching.get(tied[1]) is not None and caching[tied[1]].get(dispatching_method) is not None and caching[tied[1]][dispatching_method].get(tied[0]) is not None:
+                            result = caching[tied[1]
+                                             ][dispatching_method][tied[0]]
+
+                            print(f"  Area {tied[1]} with {tied[0]} workers, method: {dispatching_method}, time: {result}")
+
+                            if (result < best_result):
+                                best_result = result
+                                best_method = dispatching_method
+
+                            if isDev:
+                                print(
+                                    f"  HIT cache for area {tied[1]} with {tied[0]} workers")
+                            continue
+
+                        if isDev:
+                            print(
+                                f"  Dispatching method: {dispatching_method}")
+
+                        a = AreaDispatcher(
+                            number_of_workers=tied[0],
+                            # using instance 1 for all tasks
+                            machines=layout['1'][tied[1]],
+                            total_processing_time=e["limitation"],
+                            area_name=tied[1],
+
+                            dispatching_rule=dispatching_method,  # using FIFO for now
+                        )
+
+                        result = a.dispatch()
+
+                        if result < best_result:
+                            best_result = result
+                            best_method = dispatching_method
+
+                        caching.setdefault(tied[1], {}).setdefault(
+                            dispatching_method, {}
+                        ).setdefault(tied[0], best_result)
+
+                        print(f"  Area {tied[1]} with {tied[0]} workers, method: {dispatching_method}, time: {result}")
 
                     if isDev:
                         print(
-                            f"  Processing time for area {tied[1]} with {tied[0]} time: {result}")
+                            f"  Processing time for area {tied[1]} with {tied[0]}, method: {best_method}, time: {best_result}")
 
-                    new_waiting_time += result
-                    caching.setdefault(tied[1], {})[tied[0]] = result
+                    results.append(best_result)
+                    method[area_idx] = best_method
+                    # caching.setdefault(tied[1], {})[tied[0]] = best_result
 
-                if(new_waiting_time < lowest_waiting_time):
+                if (new_waiting_time < lowest_waiting_time):
                     lowest_waiting_time = new_waiting_time
                     area_to_add = area_idx
 
@@ -205,13 +245,13 @@ if __name__ == "__main__":
             "STAFF_IN_AREA2": permutation[1],
             "STAFF_IN_AREA3": permutation[2],
 
-            "DISPATCH_IN_AREA1": "FIFO",
-            "DISPATCH_IN_AREA2": "FIFO",
-            "DISPATCH_IN_AREA3": "FIFO",
+            "DISPATCH_IN_AREA1": method[0].value,
+            "DISPATCH_IN_AREA2": method[1].value,
+            "DISPATCH_IN_AREA3": method[2].value,
         })
 
         print(
-            f"Best permutation: {permutation} with time {minimum_waiting_time/60} minutes")
+            f"Best permutation: {permutation} with method: {method[0]}, method: {method[1]},method: {method[2]}, time {minimum_waiting_time/60} minutes")
 
     # print(f"caching: {caching}")
 
