@@ -11,13 +11,22 @@ dispatching_rule = "fifo"  # FIFO, LIFO, SPTF, LPTF
 show_plot = True
 
 filename = f"results/{location}-{number_of_workers}-{total_processing_time}-{dispatching_rule}.csv"
-time_limit=6000
+time_limit=10000
 
-df = pd.read_csv(filename)
+
 output_image = f"results/gantt_chart_{filename.split('/')[1].split(".")[0]}.png"
 
 def draw_loading_gantt_chart_from_df():
     fig, ax = plt.subplots(figsize=(12, 8))
+    
+    df = pd.read_csv(filename)
+    # add time limit
+    df =df[df['Processing Start'] <= time_limit]
+
+    # make sure taht Processing End, Loading Start, Loading End are time_limit if they are greater than time_limit
+    df.loc[df['Processing End'] > time_limit, 'Processing End'] = time_limit
+    df.loc[df['Loading Start'] > time_limit, 'Loading Start'] = time_limit
+    df.loc[df['Loading End'] > time_limit, 'Loading End'] = time_limit
 
     machines = list(df["Machine"].unique())
     machines.reverse()  # To show in a top-down order
@@ -36,14 +45,13 @@ def draw_loading_gantt_chart_from_df():
     # Legend
     processing_patch = mpatches.Patch(color='skyblue', label='Processing')
     loading_patch = mpatches.Patch(color='pink', label='Loading')
+
     ax.legend(handles=[processing_patch, loading_patch])
 
     plt.tight_layout()
     plt.grid(True, axis='x', linestyle='--', alpha=0.5)
 
-    load_patch = mpatches.Patch(color='#2196F3', label='Loading')
-    ax.legend(handles=[load_patch], loc='upper right')
-    ax.set_title(f'Gantt Chart (Loading Only, First {time_limit} Seconds)')
+    ax.set_title(f'Gantt Chart (First {time_limit} Seconds)')
 
     plt.tight_layout()
     plt.savefig(output_image, dpi=300)
