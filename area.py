@@ -12,7 +12,6 @@ class AreaDispatcher:
     # jobs is a Job heap queue
     # events = heapq.heapify([])
     events: list[Event] = []
-
     job_queue: list[Job] = []
 
     def __init__(self, number_of_workers, machines, total_processing_time, area_name, dispatching_rule: DispatchingRule = DispatchingRule.FIFO):
@@ -60,10 +59,17 @@ class AreaDispatcher:
                 # Initial time for the machine
                 time=machine['processing_time'],
                 status=EventStatus.JOB_COMES,
-
-                processing_start=0,
-                processing_end=machine['processing_time']
             ))
+
+        if (isDebug):
+            self.file.write(
+                f"Area: {self.area_name}, Number of Workers: {self.number_of_workers}, Total Processing Time: {self.total_processing_time}, Dispatching Rule: {self.dispatching_rule}\n")
+            # write current machines in self.events
+            self.file.write("Machines:\n")
+            for machine in self.machines:
+                self.file.write(
+                    f"{machine['machine']}, Processing Time: {machine['processing_time']}, Load/Unload Time: {machine['load_unload_time']}\n"
+                )
 
         # while heap is not empty
         while self.events:
@@ -108,13 +114,9 @@ class AreaDispatcher:
                 machine_property = next(
                     (m for m in self.machines if m['machine'] == current_event.machine_name), None)
                 if machine_property is None:
-                    if (isDebug):
-                        print(
-                            f"Machine {current_event.machine_name} not found in area {self.area_name}")
+                    print(
+                        f"Machine {current_event.machine_name} not found in area {self.area_name}")
                     continue
-
-                if(process_end[current_event.machine_name] != current_event.processing_end):
-                    print("two different processing end times for the same machine")
 
                 total_waiting_time += current_event.time - \
                     process_end[current_event.machine_name] - \
@@ -126,7 +128,7 @@ class AreaDispatcher:
 
                 # write to file
                 self.file.write(
-                    f"{current_event.machine_name},{current_event.processing_start},{current_event.processing_end},{current_event.time - machine_property['load_unload_time']},{current_event.time}\n"
+                    f"{current_event.machine_name},{process_end[current_event.machine_name] - machine_property['processing_time']},{process_end[current_event.machine_name]},{current_event.time - machine_property['load_unload_time']},{current_event.time}\n"
                 )
 
                 # worker is done, adding the next machine job ends time
@@ -136,10 +138,6 @@ class AreaDispatcher:
                     time=machine_property['processing_time'] +
                     current_event.time,
                     status=EventStatus.JOB_COMES,
-
-                    processing_start=current_event.time,
-                    processing_end=current_event.time +
-                    machine_property['processing_time'],
                 ))
 
             # check if there are jobs in the queue
@@ -210,14 +208,10 @@ class AreaDispatcher:
                             time=machine_property['load_unload_time'] +
                             current_event.time,
                             status=EventStatus.WORKER_ENDS,
-
-                            # passing machine start and end time to next event
-                            processing_start=current_event.processing_start,
-                            processing_end=current_event.processing_end,
                         ))
 
         if (isDebug):
             print(
-            f"Total waiting time for area {self.area_name}: {total_waiting_time}")
+                f"Total waiting time for area {self.area_name}: {total_waiting_time}")
 
         return total_waiting_time

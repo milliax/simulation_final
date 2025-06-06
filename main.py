@@ -150,8 +150,8 @@ if __name__ == "__main__":
                 new_permutation = permutation.copy()
                 new_permutation[area_idx] += 1
 
-                new_waiting_time = 0
                 results = []
+                results_with_methods = []
 
                 # calculate the waiting time for each area
                 for tied in zip(new_permutation, layout['1'].keys()):
@@ -171,7 +171,9 @@ if __name__ == "__main__":
                             result = caching[tied[1]
                                              ][dispatching_method][tied[0]]
 
-                            print(f"  Area {tied[1]} with {tied[0]} workers, method: {dispatching_method}, time: {result}")
+                            if isDev:
+                                print(
+                                    f"  Area {tied[1]} with {tied[0]} workers, method: {dispatching_method}, time: {result}")
 
                             if (result < best_result):
                                 best_result = result
@@ -205,30 +207,33 @@ if __name__ == "__main__":
                         caching.setdefault(tied[1], {}).setdefault(
                             dispatching_method, {}
                         ).setdefault(tied[0], best_result)
-
-                        print(f"  Area {tied[1]} with {tied[0]} workers, method: {dispatching_method}, time: {result}")
+                        if isDev:
+                            print(
+                                f"  Area {tied[1]} with {tied[0]} workers, method: {dispatching_method}, time: {result}")
 
                     if isDev:
                         print(
                             f"  Processing time for area {tied[1]} with {tied[0]}, method: {best_method}, time: {best_result}")
 
                     results.append(best_result)
-                    method[area_idx] = best_method
+                    results_with_methods.append(best_method)
                     # caching.setdefault(tied[1], {})[tied[0]] = best_result
 
-                if (new_waiting_time < lowest_waiting_time):
-                    lowest_waiting_time = new_waiting_time
+                if (sum(results) < lowest_waiting_time):
+                    lowest_waiting_time = sum(results)
                     area_to_add = area_idx
+
+                    # find what method is used
+                    method = results_with_methods
 
             if area_to_add is not None:
                 permutation[area_to_add] += 1
                 worker_available -= 1
                 minimum_waiting_time = lowest_waiting_time
 
-                print(f"     updated permutation: {permutation}")
-                print(f"     woker available: {worker_available}")
-
                 if isDev:
+                    print(f"     updated permutation: {permutation}")
+                    print(f"     woker available: {worker_available}")
                     print(
                         f"  Adding worker to area {layout['1'].keys()[area_to_add]}: {permutation}")
 

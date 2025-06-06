@@ -12,15 +12,10 @@ class EventStatus(Enum):
 
 class Event:
     def __init__(self, machine_name: str,
-                 time: int, status: EventStatus,
-                 processing_start: int = -1,
-                 processing_end: int = -1):
+                 time: int, status: EventStatus):
         self.machine_name: str = machine_name
         self.time: int = time
         self.status: EventStatus = status
-
-        self.processing_start: int = processing_start
-        self.processing_end: int = processing_end
 
     def __lt__(self, other):
         return self.time < other.time
