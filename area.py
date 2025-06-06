@@ -12,9 +12,10 @@ class AreaDispatcher:
     # jobs is a Job heap queue
     # events = heapq.heapify([])
     events: list[Event] = []
+
     job_queue: list[Job] = []
 
-    def __init__(self, number_of_workers, machines, total_processing_time, area_name):
+    def __init__(self, number_of_workers, machines, total_processing_time, area_name, dispatching_rule="FIFO"):
         self.number_of_workers = number_of_workers
         self.machines = machines
         self.total_processing_time = total_processing_time
@@ -22,7 +23,7 @@ class AreaDispatcher:
 
         self.events: list[Event] = []
         self.job_queue: list[Job] = []
-        
+
         # write data with filename {area_name}-{number_of_workers}-{total_processing_time}.csv
         self.foldername = "results"
         self.filename = f"{area_name}-{number_of_workers}-{total_processing_time}.csv"
@@ -31,7 +32,8 @@ class AreaDispatcher:
         # clear the data
         self.file.truncate(0)
         # write the header
-        self.file.write("Machine,Processing Start,Processing End,Loading Start,Loading End\n")
+        self.file.write(
+            "Machine,Processing Start,Processing End,Loading Start,Loading End\n")
 
     def dispatch(self) -> int:
         # Placeholder for dispatch logic
@@ -57,6 +59,9 @@ class AreaDispatcher:
                 # Initial time for the machine
                 time=machine['processing_time'],
                 status=EventStatus.JOB_COMES,
+
+                processing_start=0,
+                processing_end=machine['processing_time']
             ))
 
         # while heap is not empty
@@ -97,7 +102,6 @@ class AreaDispatcher:
                     machine_name=current_event.machine_name
                 ))
 
-
             elif (current_event.status == EventStatus.WORKER_ENDS):
                 # count the waiting time
                 machine_property = next(
@@ -118,15 +122,20 @@ class AreaDispatcher:
 
                 # write to file
                 self.file.write(
-                    f"{current_event.machine_name},{process_end[current_event.machine_name]},{current_event.time},{current_event.time - machine_property['load_unload_time']},{current_event.time}\n"
+                    f"{current_event.machine_name},{current_event.processing_start},{current_event.processing_end},{current_event.time - machine_property['load_unload_time']},{current_event.time}\n"
                 )
 
+                # worker is done, adding the next machine job ends time
                 heapq.heappush(self.events, Event(
                     machine_name=machine_property['machine'],
                     # Initial time for the machine
                     time=machine_property['processing_time'] +
                     current_event.time,
                     status=EventStatus.JOB_COMES,
+
+                    processing_start=current_event.time,
+                    processing_end=current_event.time +
+                    machine_property['processing_time'],
                 ))
 
             # check if there are jobs in the queue
@@ -151,6 +160,8 @@ class AreaDispatcher:
                             print("")
                         # Get the next job from the queue
                         # this worker is available
+
+                        # FIFO here
                         job = self.job_queue.pop(0)
 
                         machine_property = next(
@@ -169,11 +180,16 @@ class AreaDispatcher:
                                 f"Worker {worker} picked job {job} at time {current_event.time} for machine {job.machine_name} will finish at {worker.working_end}")
                             print("")
 
+                        # Add the worker end event to the heap
                         heapq.heappush(self.events, Event(
                             machine_name=job.machine_name,
                             time=machine_property['load_unload_time'] +
                             current_event.time,
                             status=EventStatus.WORKER_ENDS,
+
+                            # passing machine start and end time to next event
+                            processing_start=current_event.processing_start,
+                            processing_end=current_event.processing_end,
                         ))
 
         if (isDebug):
