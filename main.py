@@ -92,7 +92,9 @@ if __name__ == "__main__":
 
     result_to_write: list[dict[str, int | str | float]] = []
 
-    for e in iter:
+    sorted_iter = sorted(iter, key=lambda x: x['id'])
+
+    for e in sorted_iter:
         print(f"Instance: {e['id']}")
         print(f"  Total Workers: {e['workers']}")
         print(f"  Time limitation: {e['limitation']} seconds")

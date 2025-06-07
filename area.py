@@ -26,6 +26,9 @@ class AreaDispatcher:
 
         # write data with filename {area_name}-{number_of_workers}-{total_processing_time}.csv
         self.foldername = "results"
+        # create folder if not exist
+        if not os.path.exists(self.foldername):
+            os.makedirs(self.foldername)
         self.filename = f"{area_name}-{number_of_workers}-{total_processing_time}-{dispatching_rule}.csv"
 
         self.file = open(f"results/{self.filename}", "w")
